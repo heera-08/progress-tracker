@@ -7,9 +7,13 @@ const workEntryRoutes = require('./routes/workEntries');
 const bugRoutes = require('./routes/bugs');
 const reportRoutes = require('./routes/reports');
 
+
+
+
 const app = express();
 const PORT = process.env.PORT || 3000;
-
+// Serve static files (for audio reports)
+app.use('/reports', express.static('reports'));
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -43,5 +47,5 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port  http://localhost:${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });

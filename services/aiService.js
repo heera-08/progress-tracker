@@ -1,28 +1,20 @@
-const { VertexAI } = require('@google-cloud/vertexai');
-const textToSpeech = require('@google-cloud/text-to-speech');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { createClient } = require('@deepgram/sdk');
 const fs = require('fs').promises;
 const path = require('path');
 
-// Initialize Vertex AI
-const vertexAI = new VertexAI({
-  project: 'company-chatbot-465813',
-  location: 'us-central1',
-  credentials: JSON.parse(process.env.GCP_CREDENTIALS)
-});
+// Initialize Gemini AI
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// Initialize Text-to-Speech client
-const ttsClient = new textToSpeech.TextToSpeechClient({
-  credentials: JSON.parse(process.env.GCP_CREDENTIALS)
-});
+// Initialize Deepgram client
+const deepgram = createClient(process.env.DEEPGRAM_API_KEY);
 
-const model = 'gemini-1.5-flash';
-
-class GCPService {
+class AIService {
   
   // Extract skills, technologies, and insights from work entry
   async analyzeWorkEntry(title, description) {
     try {
-      const generativeModel = vertexAI.getGenerativeModel({ model });
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-001' });
       
       const prompt = `Analyze this work entry and extract structured information:
 
@@ -30,7 +22,7 @@ Title: ${title}
 Description: ${description}
 
 Please provide a JSON response with:
-1. extractedSkills: Array of objects with {name, category (Frontend/Backend/DevOps/Database/ML/Other), confidence (0-1)}
+1. extractedSkills: Array of objects with {name, category (Frontend/AI/Git/Backend/Learning/problem solving/Bug fix/azure/AWS/Database/ML/Other), confidence (0-1)}
 2. technologies: Array of technology names
 3. problemsSolved: Number of problems/issues solved (estimate based on content)
 4. accomplishments: Array of key accomplishments
@@ -50,9 +42,9 @@ Example response:
 
 Return ONLY valid JSON, no markdown or explanations.`;
 
-      const result = await generativeModel.generateContent(prompt);
+      const result = await model.generateContent(prompt);
       const response = result.response;
-      const text = response.candidates[0].content.parts[0].text;
+      const text = response.text();
       
       // Clean up response (remove markdown if present)
       const cleanText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
@@ -64,19 +56,13 @@ Return ONLY valid JSON, no markdown or explanations.`;
     }
   }
 
-  // Generate embeddings for RAG
+  // Generate embeddings for RAG using Gemini
   async generateEmbedding(text) {
     try {
-      const generativeModel = vertexAI.getGenerativeModel({ 
-        model: 'text-embedding-004'
-      });
+      const model = genAI.getGenerativeModel({ model: 'text-embedding-004' });
       
-      const request = {
-        contents: [{ role: 'user', parts: [{ text }] }]
-      };
-      
-      const result = await generativeModel.generateContent(request);
-      return result.response.candidates[0].content.parts[0].embedding || [];
+      const result = await model.embedContent(text);
+      return result.embedding.values;
       
     } catch (error) {
       console.error('Error generating embedding:', error);
@@ -90,6 +76,10 @@ Return ONLY valid JSON, no markdown or explanations.`;
     try {
       const queryEmbedding = await this.generateEmbedding(query);
       
+      if (!queryEmbedding || queryEmbedding.length === 0) {
+        return [];
+      }
+      
       // Calculate cosine similarity
       const similarities = bugEmbeddings.map(bug => {
         if (!bug.embedding || bug.embedding.length === 0) return { bug, similarity: 0 };
@@ -101,7 +91,8 @@ Return ONLY valid JSON, no markdown or explanations.`;
       // Sort by similarity and return top 3
       return similarities
         .sort((a, b) => b.similarity - a.similarity)
-        .slice(0, 3);
+        .slice(0, 3)
+        .filter(item => item.similarity > 0.3); // Only return if similarity > 30%
         
     } catch (error) {
       console.error('Error searching bugs:', error);
@@ -112,7 +103,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
   // Generate solution suggestion using RAG results
   async generateBugSolution(query, similarBugs) {
     try {
-      const generativeModel = vertexAI.getGenerativeModel({ model });
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-001' });
       
       const context = similarBugs.map((item, idx) => 
         `Bug ${idx + 1} (Similarity: ${(item.similarity * 100).toFixed(1)}%):
@@ -137,9 +128,9 @@ Please provide:
 
 Format your response clearly with sections.`;
 
-      const result = await generativeModel.generateContent(prompt);
+      const result = await model.generateContent(prompt);
       const response = result.response;
-      return response.candidates[0].content.parts[0].text;
+      return response.text();
       
     } catch (error) {
       console.error('Error generating solution:', error);
@@ -150,7 +141,7 @@ Format your response clearly with sections.`;
   // Generate comprehensive report
   async generateReport(workEntries, startDate, endDate) {
     try {
-      const generativeModel = vertexAI.getGenerativeModel({ model });
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-001' });
       
       // Aggregate data
       const allSkills = workEntries.flatMap(e => e.extractedSkills);
@@ -183,9 +174,9 @@ Please create a detailed report with these sections:
 
 Make it motivating and data-driven. Use specific numbers and be encouraging.`;
 
-      const result = await generativeModel.generateContent(prompt);
+      const result = await model.generateContent(prompt);
       const response = result.response;
-      return response.candidates[0].content.parts[0].text;
+      return response.text();
       
     } catch (error) {
       console.error('Error generating report:', error);
@@ -193,32 +184,43 @@ Make it motivating and data-driven. Use specific numbers and be encouraging.`;
     }
   }
 
-  // Convert text report to audio
+  // Convert text report to audio using Deepgram
   async generateAudio(text, outputPath = 'reports') {
     try {
-      const request = {
-        input: { text },
-        voice: {
-          languageCode: 'en-US',
-          name: 'en-US-Neural2-J', // Male voice, change to 'en-US-Neural2-F' for female
-          ssmlGender: 'MALE'
-        },
-        audioConfig: {
-          audioEncoding: 'MP3',
-          speakingRate: 1.0,
-          pitch: 0.0
-        }
-      };
-
-      const [response] = await ttsClient.synthesizeSpeech(request);
-      
       // Create output directory if it doesn't exist
       await fs.mkdir(outputPath, { recursive: true });
       
       const filename = `report_${Date.now()}.mp3`;
       const filepath = path.join(outputPath, filename);
+
+      // Generate speech with Deepgram
+      const response = await deepgram.speak.request(
+        { text },
+        {
+          model: 'aura-asteria-en', // Natural female voice
+          encoding: 'mp3',
+          container: 'mp3'
+        }
+      );
+
+      // Get audio stream
+      const stream = await response.getStream();
       
-      await fs.writeFile(filepath, response.audioContent, 'binary');
+      if (!stream) {
+        throw new Error('No audio stream returned from Deepgram');
+      }
+
+      // Convert stream to buffer
+      const chunks = [];
+      for await (const chunk of stream) {
+        chunks.push(chunk);
+      }
+      const buffer = Buffer.concat(chunks);
+
+      // Write to file
+      await fs.writeFile(filepath, buffer);
+      
+      console.log(`✅ Audio file created: ${filepath}`);
       
       return {
         filename,
@@ -246,8 +248,9 @@ Make it motivating and data-driven. Use specific numbers and be encouraging.`;
       normB += vecB[i] * vecB[i];
     }
     
-    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+    const denominator = Math.sqrt(normA) * Math.sqrt(normB);
+    return denominator === 0 ? 0 : dotProduct / denominator;
   }
 }
 
-module.exports = new GCPService();
+module.exports = new AIService();

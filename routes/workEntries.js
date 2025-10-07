@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const WorkEntry = require('../models/WorkEntry');
-const gcpService = require('../services/gcpService');
+const aiService = require('../services/aiService');
 
 // Create new work entry with AI analysis
 router.post('/', async (req, res) => {
@@ -16,11 +16,11 @@ router.post('/', async (req, res) => {
 
     // Analyze entry with AI
     console.log('🤖 Analyzing work entry with AI...');
-    const analysis = await gcpService.analyzeWorkEntry(title, description);
+    const analysis = await aiService.analyzeWorkEntry(title, description);
     
     // Generate embedding for future RAG
     const embeddingText = `${title} ${description}`;
-    const embedding = await gcpService.generateEmbedding(embeddingText);
+    const embedding = await aiService.generateEmbedding(embeddingText);
 
     // Create work entry
     const workEntry = new WorkEntry({
@@ -132,8 +132,8 @@ router.put('/:id', async (req, res) => {
       const newTitle = title || entry.title;
       const newDesc = description || entry.description;
       
-      const analysis = await gcpService.analyzeWorkEntry(newTitle, newDesc);
-      const embedding = await gcpService.generateEmbedding(`${newTitle} ${newDesc}`);
+      const analysis = await aiService.analyzeWorkEntry(newTitle, newDesc);
+      const embedding = await aiService.generateEmbedding(`${newTitle} ${newDesc}`);
       
       updateData = {
         ...updateData,

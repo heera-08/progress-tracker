@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Bug = require('../models/Bug');
-const gcpService = require('../services/gcpService');
+const aiService = require('../services/aiService');
 
 // Create new bug entry
 router.post('/', async (req, res) => {
@@ -16,7 +16,7 @@ router.post('/', async (req, res) => {
 
     // Generate embedding for RAG
     const embeddingText = `${title} ${description} ${solution}`;
-    const embedding = await gcpService.generateEmbedding(embeddingText);
+    const embedding = await aiService.generateEmbedding(embeddingText);
 
     const bug = new Bug({
       title,
@@ -107,7 +107,7 @@ router.post('/search-solution', async (req, res) => {
     }
 
     // Find similar bugs using embeddings
-    const similarBugs = await gcpService.searchSimilarBugs(query, allBugs);
+    const similarBugs = await aiService.searchSimilarBugs(query, allBugs);
 
     if (similarBugs.length === 0) {
       return res.json({
@@ -119,7 +119,7 @@ router.post('/search-solution', async (req, res) => {
 
     // Generate AI solution based on similar bugs
     console.log('🤖 Generating AI solution based on similar bugs...');
-    const aiSolution = await gcpService.generateBugSolution(query, similarBugs);
+    const aiSolution = await aiService.generateBugSolution(query, similarBugs);
 
     res.json({
       query,
@@ -158,7 +158,7 @@ router.put('/:id', async (req, res) => {
       const newSol = solution || bug.solution;
       
       const embeddingText = `${newTitle} ${newDesc} ${newSol}`;
-      const embedding = await gcpService.generateEmbedding(embeddingText);
+      const embedding = await aiService.generateEmbedding(embeddingText);
       
       updateData.embedding = embedding;
     }

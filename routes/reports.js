@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const WorkEntry = require('../models/WorkEntry');
-const gcpService = require('../services/gcpService');
+const aiService = require('../services/aiService');
 
 // Generate comprehensive report
 router.post('/generate', async (req, res) => {
@@ -33,7 +33,7 @@ router.post('/generate', async (req, res) => {
 
     // Generate AI report
     console.log('🤖 Generating AI-powered analysis...');
-    const reportText = await gcpService.generateReport(
+    const reportText = await aiService.generateReport(
       workEntries, 
       startDate, 
       endDate
@@ -50,8 +50,8 @@ router.post('/generate', async (req, res) => {
 
     // Generate audio if requested
     if (includeAudio) {
-      console.log('🎙️ Converting report to audio...');
-      const audioFile = await gcpService.generateAudio(reportText);
+      console.log('🎙️ Converting report to audio with Deepgram...');
+      const audioFile = await aiService.generateAudio(reportText);
       response.audioFile = audioFile;
     }
 
@@ -146,8 +146,8 @@ router.post('/generate-audio', async (req, res) => {
       return res.status(400).json({ error: 'Text is required' });
     }
 
-    console.log('🎙️ Generating audio file...');
-    const audioFile = await gcpService.generateAudio(text);
+    console.log('🎙️ Generating audio file with Deepgram...');
+    const audioFile = await aiService.generateAudio(text);
 
     res.json({
       message: 'Audio generated successfully',
