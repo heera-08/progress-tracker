@@ -122,9 +122,8 @@ SIMILAR PAST SOLUTIONS:
 ${context}
 
 Please provide:
-1. A suggested solution based on the similar bugs
+1. A short and effective suggested solution based on the similar bugs
 2. Key steps to resolve the issue
-3. Any relevant warnings or best practices
 
 Format your response clearly with sections.`;
 
@@ -162,7 +161,7 @@ Skills Developed: ${allSkills.map(s => s.name).join(', ')}
 
 ${dataContext}
 
-Please create a detailed report with these sections:
+Please create a quick summary report under 1500 characters, No preamble, let the tone be casual, do not be too generaic include keywords, use these sections:
 1. **Executive Summary**: Overview of the period
 2. **Key Accomplishments**: Major achievements
 3. **Skills Development**: Skills learned and improved (categorized)
@@ -198,8 +197,8 @@ Make it motivating and data-driven. Use specific numbers and be encouraging.`;
         { text },
         {
           model: 'aura-asteria-en', // Natural female voice
-          encoding: 'mp3',
-          container: 'mp3'
+          encoding: 'linear16',
+          container: 'wav'
         }
       );
 
